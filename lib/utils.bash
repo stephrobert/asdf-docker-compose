@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-
+set -x
 set -euo pipefail
 
 # TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for docker-compose.
-GH_REPO="https://github.com/stephrobert/asdf-docker-compose"
+GH_REPO="https://github.com/docker/compose"
 TOOL_NAME="docker-compose"
 TOOL_TEST="docker-compose --help"
 
@@ -12,7 +12,7 @@ fail() {
   exit 1
 }
 
-curl_opts=(-fsSL)
+curl_opts=(-L)
 
 # NOTE: You might want to remove this if docker-compose is not hosted on GitHub releases.
 if [ -n "${GITHUB_API_TOKEN:-}" ]; then
@@ -36,13 +36,42 @@ list_all_versions() {
   list_github_tags
 }
 
+get_platform() {
+  local platform
+
+  case "$(uname | tr '[:upper:]' '[:lower:]')" in
+  darwin) platform="darwin" ;;
+  linux) platform="linux" ;;
+  windows) platform="windows" ;;
+  *)
+    fail "Platform '$(uname)' not supported!"
+    ;;
+  esac
+
+  echo -n $platform
+}
+
+get_arch() {
+  local arch
+
+  case "$(uname -m)" in
+  x86_64 | amd64) arch="x86_64" ;;
+  aarch64 | arm64) arch="arm64" ;;
+  *)
+    fail "Arch '$(uname -m)' not supported!"
+    ;;
+  esac
+
+  echo -n $arch
+}
+
 download_release() {
   local version filename url
   version="$1"
   filename="$2"
 
   # TODO: Adapt the release URL convention for docker-compose
-  url="$GH_REPO/archive/v${version}.tar.gz"
+  url="$GH_REPO/releases/download/v${version}/${TOOL_NAME}-$(get_platform)-$(get_arch)"
 
   echo "* Downloading $TOOL_NAME release $version..."
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
@@ -58,8 +87,8 @@ install_version() {
   fi
 
   (
-    mkdir -p "$install_path"
-    cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
+    mkdir -p "$install_path/bin"
+    cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path/bin"
 
     # TODO: Asert docker-compose executable exists.
     local tool_cmd
